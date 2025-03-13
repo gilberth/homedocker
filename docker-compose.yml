@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  app:
+    image: gilberth/homedocker:latest
+    container_name: homedocker
+    restart: always
+    ports:
+      - "8080:8080"
+    networks:
+      - homedocker_net
+
+networks:
+  homedocker_net:
+    driver: bridge
