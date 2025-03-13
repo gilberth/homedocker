@@ -1,0 +1,47 @@
+name: Docker Build y Deploy a Portainer
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: self-hosted  # Usa tu runner propio que ya está instalado
+    steps:
+      - name: Checkout del código
+        uses: actions/checkout@v3
+
+      # No es necesario configurar Docker pues ya está instalado en tu server
+      - name: Login a Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: gilberth
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      # Construir y subir la imagen
+      - name: Construir imagen Docker
+        run: |
+          docker build -t gilberth/homedocker:latest .
+          docker push gilberth/homedocker:latest
+
+      # Comunicación con Portainer local
+      - name: Deploy a Portainer
+        run: |
+          # Autenticación en Portainer
+          TOKEN=$(curl -s -X POST -H "Content-Type: application/json" \
+            -d '{"Username": "${{ secrets.PORTAINER_USERNAME }}", "Password": "${{ secrets.PORTAINER_PASSWORD }}"}' \
+            "http://10.10.10.232:9000/api/auth" | jq -r '.jwt')
+          
+          # Crear un nuevo stack en Portainer
+          curl -s -X POST \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{
+              "name": "homedocker",
+              "swarmID": "",
+              "stackFileContent": "version: \"3\"\n\nservices:\n  app:\n    image: gilberth/homedocker:latest\n    container_name: homedocker\n    restart: always\n    ports:\n      - \"8080:8080\"\n    networks:\n      - homedocker_net\n\nnetworks:\n  homedocker_net:\n    driver: bridge",
+              "env": []
+            }' \
+            "http://10.10.10.232:9000/api/stacks"
